@@ -1,5 +1,7 @@
-from easydict import EasyDict as edict
+import os
+import sys
 
+from easydict import EasyDict as edict
 import numpy as np
 import torch
 import torch.nn as nn
@@ -8,6 +10,17 @@ from torch.nn import functional as F
 from .builder import SPPE
 from .layers.smpl.SMPL import SMPL_layer
 from .layers.hrnet.hrnet import get_hrnet
+
+
+# Check if HybrIK is in sys.path
+hybrik_path = None
+for path in sys.path:
+    if os.path.basename(path) == "HybrIK":
+        hybrik_path = path
+        break
+
+if hybrik_path is None:
+    raise ImportError("HybrIK not found in sys.path. Please ensure HybrIK is installed.")
 
 
 def flip(x):
@@ -74,9 +87,9 @@ class HRNetSMPLCam(nn.Module):
         # model_state.update(state)
         # self.preact.load_state_dict(model_state)
 
-        h36m_jregressor = np.load('./model_files/J_regressor_h36m.npy')
+        h36m_jregressor = np.load(os.path.join(hybrik_path, 'model_files/J_regressor_h36m.npy'))
         self.smpl = SMPL_layer(
-            './model_files/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl',
+            os.path.join(hybrik_path, 'model_files/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl'),
             h36m_jregressor=h36m_jregressor,
             dtype=self.smpl_dtype
         )
@@ -91,7 +104,7 @@ class HRNetSMPLCam(nn.Module):
         self.root_idx_smpl = 0
 
         # mean shape
-        init_shape = np.load('./model_files/h36m_mean_beta.npy')
+        init_shape = np.load(os.path.join(hybrik_path, 'model_files/h36m_mean_beta.npy'))
         self.register_buffer(
             'init_shape',
             torch.Tensor(init_shape).float())

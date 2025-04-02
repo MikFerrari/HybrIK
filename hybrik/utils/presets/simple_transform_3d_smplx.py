@@ -13,29 +13,41 @@ from ..pose_utils import get_intrinsic_metrix
 from hybrik.models.layers.smplx.body_models import SMPLXLayer
 # from hybrik.models.layers.smplx.joint_names import JOINT_NAMES
 
+import os
+import sys
+
+# Check if HybrIK is in sys.path
+hybrik_path = None
+for path in sys.path:
+    if os.path.basename(path) == "HybrIK":
+        hybrik_path = path
+        break
+
+if hybrik_path is None:
+    raise ImportError("HybrIK not found in sys.path. Please ensure HybrIK is installed.")
 
 smplx_layer_neutral = SMPLXLayer(
-    model_path='model_files/smplx/SMPLX_NEUTRAL.npz',
+    model_path=os.path.join(hybrik_path, 'model_files/smplx/SMPLX_NEUTRAL.npz'),
     num_betas=10,
     use_pca=False,
     age='kid',
-    kid_template_path='model_files/smplx_kid_template.npy',
+    kid_template_path=os.path.join(hybrik_path, 'model_files/smplx_kid_template.npy'),
 )
 
 smplx_layer_female = SMPLXLayer(
-    model_path='model_files/smplx/SMPLX_FEMALE.npz',
+    model_path=os.path.join(hybrik_path, 'model_files/smplx/SMPLX_FEMALE.npz'),
     num_betas=10,
     use_pca=False,
     age='kid',
-    kid_template_path='model_files/smplx_kid_template.npy',
+    kid_template_path=os.path.join(hybrik_path, 'model_files/smplx_kid_template.npy'),
 )
 
 smplx_layer_male = SMPLXLayer(
-    model_path='model_files/smplx/SMPLX_MALE.npz',
+    model_path=os.path.join(hybrik_path, 'model_files/smplx/SMPLX_MALE.npz'),
     num_betas=10,
     use_pca=False,
     age='kid',
-    kid_template_path='model_files/smplx_kid_template.npy',
+    kid_template_path=os.path.join(hybrik_path, 'model_files/smplx_kid_template.npy'),
 )
 
 

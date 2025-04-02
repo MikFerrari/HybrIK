@@ -724,8 +724,7 @@ class SMPLX(SMPLH):
             dtype: torch.dtype
                 The data type for the created variables
         '''
-        # print('aha!!')
-        # return
+        
         # Load the model
         if osp.isdir(model_path):
             model_fn = 'SMPLX_{}.{ext}'.format(gender.upper(), ext=ext)

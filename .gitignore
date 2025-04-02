@@ -108,3 +108,4 @@ data
 data/
 exp
 model_files
+pretrained_models

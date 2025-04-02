@@ -14,6 +14,7 @@ from hybrik.utils.vis import get_one_box
 from torchvision import transforms as T
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from tqdm import tqdm
+from skeleton_visualizer import SkeletonVisualizer
 
 det_transform = T.Compose([T.ToTensor()])
 
@@ -42,13 +43,23 @@ parser.add_argument('--out-dir',
                     help='output folder',
                     default='',
                     type=str)
+parser.add_argument('--viz',
+                    help='enable visualization?',
+                    default=False,
+                    type=bool)
+parser.add_argument('--use-smplx',
+                    help='Use SMPL-X instead of SMPL',
+                    default=False,
+                    type=bool)
 opt = parser.parse_args()
 
 
-# cfg_file = 'configs/256x192_adam_lr1e-3-res34_smpl_3d_cam_2x_mix_w_pw3d.yaml'
-# CKPT = './pretrained_w_cam.pth'
 cfg_file = 'configs/256x192_adam_lr1e-3-hrw48_cam_2x_w_pw3d_3dhp.yaml'
-CKPT = './pretrained_models/hybrik_hrnet.pth'
+CKPT = './pretrained_models/hybrik_hrnet48_w3dpw.pth'
+if opt.use_smplx:
+    cfg_file = 'configs/smplx/256x192_hrnet_smplx_kid.yaml'
+    CKPT = './pretrained_models/hybrikx_hrnet.pth'
+
 cfg = update_config(cfg_file)
 
 bbox_3d_shape = getattr(cfg.MODEL, 'BBOX_3D_SHAPE', (2000, 2000, 2000))
@@ -89,8 +100,11 @@ hybrik_model.cuda(opt.gpu)
 det_model.eval()
 hybrik_model.eval()
 
-files = os.listdir(opt.img_dir)
+files = sorted(os.listdir(opt.img_dir))
+
 smpl_faces = torch.from_numpy(hybrik_model.smpl.faces.astype(np.int32))
+if opt.use_smplx:
+    smpl_faces = torch.from_numpy(hybrik_model.smplx_layer.faces.astype(np.int32))
 
 if not os.path.exists(opt.out_dir):
     os.makedirs(opt.out_dir)
@@ -100,7 +114,7 @@ for file in tqdm(files):
         # is an image
         if file[:4] == 'res_':
             continue
-
+        
         # process file name
         img_path = os.path.join(opt.img_dir, file)
         dirname = os.path.dirname(img_path)
@@ -123,39 +137,63 @@ for file in tqdm(files):
             bboxes=torch.from_numpy(np.array(bbox)).to(pose_input.device).unsqueeze(0).float(),
             img_center=torch.from_numpy(img_center).to(pose_input.device).unsqueeze(0).float()
         )
-        uv_29 = pose_output.pred_uvd_jts.reshape(29, 3)[:, :2]
+
+        # Get 2D keypoints in relative image coordinates w.r.t. the human bbox
+        uv_jts = pose_output.pred_uvd_jts.reshape(29, 3)[:, :2]
+        confidence = pose_output.scores.reshape(29, 1)
+
+        # Get 3D keypoints in meters w.r.t. the human pelvis
         transl = pose_output.transl.detach()
+        xyz_jts = pose_output.pred_xyz_jts_24_struct.reshape(24, 3).detach().cpu()
 
-        # Visualization
-        image = input_image.copy()
-        focal = 1000.0
-        bbox_xywh = xyxy2xywh(bbox)
+        # Visualize
+        if opt.viz:           
+            image = input_image.copy()
+            focal = 1000.0
+            bbox_xywh = xyxy2xywh(bbox)
 
-        focal = focal / 256 * bbox_xywh[2]
+            focal = focal / 256 * bbox_xywh[2]
 
-        vertices = pose_output.pred_vertices.detach()
+            vertices = pose_output.pred_vertices.detach()
 
-        verts_batch = vertices
-        transl_batch = transl
+            verts_batch = vertices
+            transl_batch = transl
 
-        color_batch = render_mesh(
-            vertices=verts_batch, faces=smpl_faces,
-            translation=transl_batch,
-            focal_length=focal, height=image.shape[0], width=image.shape[1])
+            # Visualize 2D skeleton keypoints and the human mesh over the image
+            color_batch = render_mesh(
+                vertices=verts_batch, faces=smpl_faces,
+                translation=transl_batch,
+                focal_length=focal, height=image.shape[0], width=image.shape[1])
+            
+            valid_mask_batch = (color_batch[:, :, :, [-1]] > 0)
+            image_vis_batch = color_batch[:, :, :, :3] * valid_mask_batch
+            image_vis_batch = (image_vis_batch * 255).cpu().numpy()
 
-        valid_mask_batch = (color_batch[:, :, :, [-1]] > 0)
-        image_vis_batch = color_batch[:, :, :, :3] * valid_mask_batch
-        image_vis_batch = (image_vis_batch * 255).cpu().numpy()
+            color = image_vis_batch[0]
+            valid_mask = valid_mask_batch[0].cpu().numpy()
+            input_img = image
+            alpha = 0.9
+            image_vis = alpha * color[:, :, :3] * valid_mask + (
+                1 - alpha) * input_img * valid_mask + (1 - valid_mask) * input_img
 
-        color = image_vis_batch[0]
-        valid_mask = valid_mask_batch[0].cpu().numpy()
-        input_img = image
-        alpha = 0.9
-        image_vis = alpha * color[:, :, :3] * valid_mask + (
-            1 - alpha) * input_img * valid_mask + (1 - valid_mask) * input_img
+            image_vis = image_vis.astype(np.uint8)
+            image_vis = cv2.cvtColor(image_vis, cv2.COLOR_RGB2BGR)
 
-        image_vis = image_vis.astype(np.uint8)
-        image_vis = cv2.cvtColor(image_vis, cv2.COLOR_RGB2BGR)
+            x = uv_jts[:, 0] * bbox_xywh[2]
+            y = uv_jts[:, 1] * bbox_xywh[3]
+            kpts = torch.zeros_like(uv_jts)
+            kpts[:, 0] = x + bbox_xywh[0]
+            kpts[:, 1] = y + bbox_xywh[1]
+            kpts = kpts.detach().cpu().numpy()       
 
-        res_path = os.path.join(opt.out_dir, basename)
-        cv2.imwrite(res_path, image_vis)
+            # Visualize 2D skeleton
+            skeleton_vis = SkeletonVisualizer()
+
+            image_vis = skeleton_vis.draw_skeleton_on_image(image_vis, kpts, thickness=2, radius=4)
+
+            res_path = os.path.join(opt.out_dir, basename)
+            cv2.imwrite(res_path, image_vis)
+
+            # Visualize 3D skeleton (Hybrik -> XYZ in meters RELATIVE TO PELVIS!)
+            kpts_3D_smpl = xyz_jts.detach().cpu().numpy()
+            skeleton_vis.plot_3d_skeleton(kpts_3D_smpl, title=f'{basename} - 3D Skeleton', figtitle=basename)

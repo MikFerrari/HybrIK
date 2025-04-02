@@ -8,12 +8,25 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import os
+import sys
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 from easydict import EasyDict as edict
+
+
+# Check if HybrIK is in sys.path
+hybrik_path = None
+for path in sys.path:
+    if os.path.basename(path) == "HybrIK":
+        hybrik_path = path
+        break
+
+if hybrik_path is None:
+    raise ImportError("HybrIK not found in sys.path. Please ensure HybrIK is installed.")
+
 
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
@@ -610,7 +623,7 @@ def load_hrnet_cfg(file_name):
 
 
 def get_hrnet(type_name, num_joints, depth_dim, **kwargs):
-    cfg = load_hrnet_cfg(f'./hybrik/models/layers/hrnet/w{type_name}.yaml')
+    cfg = load_hrnet_cfg(os.path.join(hybrik_path, f'hybrik/models/layers/hrnet/w{type_name}.yaml'))
     cfg['MODEL']['NUM_JOINTS'] = num_joints
     cfg['MODEL']['DEPTH_DIM'] = depth_dim
 

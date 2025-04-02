@@ -23,12 +23,12 @@ DATASET:
   COLOR_FACTOR: 0.2
   OCCLUSION: False
   FOCAL_LENGTH: 1000.0
-  USE_KID: True
+  USE_KID: False # True
 MODEL:
   TYPE: 'HRNetSMPLXCamKid'
-  HR_PRETRAINED: './pose_hrnet_w48_256x192.pth'
+  HR_PRETRAINED: './pretrained_models/pretrained_hrnet.pth' # './pose_hrnet_w48_256x192.pth'
   PRETRAINED: './pretrained_models/hybrikx_hrnet.pth'
-  TRY_LOAD: './pretrained_hrnet.pth'
+  TRY_LOAD: './pretrained_models/pretrained_hrnet.pth' # './pretrained_hrnet.pth'
   RESUME: ''
   FOCAL_LENGTH: 1000
   IMAGE_SIZE:
@@ -47,6 +47,7 @@ MODEL:
     PRESET: 'simple_smpl_3d_cam'
     DEPTH_DIM: 64
     HAND_REL: True
+    USE_KID: False # True # ADDED
   POST:
     NORM_TYPE: 'softmax'
   BBOX_3D_SHAPE:

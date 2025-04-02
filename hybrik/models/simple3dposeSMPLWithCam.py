@@ -8,6 +8,19 @@ from .builder import SPPE
 from .layers.Resnet import ResNet
 from .layers.smpl.SMPL import SMPL_layer
 
+import os
+import sys
+
+# Check if HybrIK is in sys.path
+hybrik_path = None
+for path in sys.path:
+    if os.path.basename(path) == "HybrIK":
+        hybrik_path = path
+        break
+
+if hybrik_path is None:
+    raise ImportError("HybrIK not found in sys.path. Please ensure HybrIK is installed.")
+
 
 def flip(x):
     assert (x.dim() == 3 or x.dim() == 4)
@@ -72,9 +85,9 @@ class Simple3DPoseBaseSMPLCam(nn.Module):
         self.final_layer = nn.Conv2d(
             self.deconv_dim[2], self.num_joints * self.depth_dim, kernel_size=1, stride=1, padding=0)
 
-        h36m_jregressor = np.load('./model_files/J_regressor_h36m.npy')
+        h36m_jregressor = np.load(os.path.join(hybrik_path, 'model_files/J_regressor_h36m.npy'))
         self.smpl = SMPL_layer(
-            './model_files/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl',
+            os.path.join(hybrik_path, 'model_files/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl'),
             h36m_jregressor=h36m_jregressor,
             dtype=self.smpl_dtype
         )
@@ -90,7 +103,7 @@ class Simple3DPoseBaseSMPLCam(nn.Module):
         self.root_idx_smpl = 0
 
         # mean shape
-        init_shape = np.load('./model_files/h36m_mean_beta.npy')
+        init_shape = np.load(os.path.join(hybrik_path, 'model_files/h36m_mean_beta.npy'))
         self.register_buffer(
             'init_shape',
             torch.Tensor(init_shape).float())
